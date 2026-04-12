@@ -17,6 +17,9 @@ COPY . .
 # Build Vue frontend
 RUN npm run build
 
+# Bundle server with esbuild (CJS for node without tsx)
+RUN cd server && npx esbuild index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --format=cjs --external:better-sqlite3 --external:bcryptjs
+
 # ===== Production Stage =====
 FROM node:20-alpine AS production
 
@@ -26,8 +29,8 @@ WORKDIR /app
 COPY server/package.json server/package-lock.json* ./server/
 RUN cd server && npm install --omit=dev
 
-# Copy server source
-COPY server/ ./server/
+# Copy compiled server
+COPY --from=builder /app/server/dist ./server/dist
 
 # Copy built frontend
 COPY --from=builder /app/dist ./dist
@@ -41,5 +44,4 @@ ENV DB_PATH=/app/data/badminton.db
 
 EXPOSE 3000
 
-# Run server with tsx
-CMD ["npx", "-y", "tsx", "server/index.ts"]
+CMD ["node", "server/dist/index.cjs"]

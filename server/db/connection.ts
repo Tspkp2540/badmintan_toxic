@@ -1,12 +1,10 @@
 import Database from 'better-sqlite3'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import fs from 'node:fs'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'badminton.db')
+const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), 'data', 'badminton.db')
 
 // Ensure data directory exists
-import fs from 'node:fs'
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true })
 
 const db = new Database(DB_PATH)
