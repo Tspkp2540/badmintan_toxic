@@ -64,11 +64,6 @@ function isCurrentUserInRoom(room: MatchRoom): boolean {
   )
 }
 
-function isCurrentUserPlayer(room: MatchRoom): boolean {
-  if (!currentUser.value) return false
-  return room.players.some((p) => p.userId === currentUser.value!.id)
-}
-
 function teamPlayers(room: MatchRoom, team: 'A' | 'B') {
   return room.players.filter((p) => p.team === team)
 }
