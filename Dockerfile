@@ -1,41 +1,28 @@
-# ===== Build Stage =====
-FROM node:20-alpine AS builder
+# ===== Stage 1: Build Vue frontend =====
+FROM node:20-alpine AS frontend
 
 WORKDIR /app
-
-# Install frontend dependencies
 COPY package.json package-lock.json* ./
 RUN npm install
-
-# Install server dependencies
-COPY server/package.json server/package-lock.json* ./server/
-RUN cd server && npm install
-
-# Copy source
 COPY . .
-
-# Build Vue frontend
 RUN npm run build
 
-# Bundle server with esbuild (CJS for node without tsx)
-RUN cd server && npx esbuild index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --format=cjs --external:better-sqlite3 --external:bcryptjs
-
-# ===== Production Stage =====
-FROM node:20-alpine AS production
+# ===== Stage 2: Build Go backend =====
+FROM golang:1.22-alpine AS backend
 
 WORKDIR /app
+COPY server/go.mod ./
+COPY server/*.go ./
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o badminton-server .
 
-# Install only server production dependencies
-COPY server/package.json server/package-lock.json* ./server/
-RUN cd server && npm install --omit=dev
+# ===== Stage 3: Production =====
+FROM alpine:3.19
 
-# Copy compiled server
-COPY --from=builder /app/server/dist ./server/dist
+RUN apk add --no-cache ca-certificates tzdata
+WORKDIR /app
 
-# Copy built frontend
-COPY --from=builder /app/dist ./dist
-
-# Create data directory for SQLite
+COPY --from=backend /app/badminton-server .
+COPY --from=frontend /app/dist ./dist
 RUN mkdir -p /app/data
 
 ENV NODE_ENV=production
@@ -44,4 +31,4 @@ ENV DB_PATH=/app/data/badminton.db
 
 EXPOSE 3000
 
-CMD ["node", "server/dist/index.cjs"]
+CMD ["./badminton-server"]

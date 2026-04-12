@@ -5,11 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "cd server && npx tsx watch index.ts",
+    "dev:server": "cd server && go run .",
     "dev:all": "concurrently \"npm run dev:server\" \"npm run dev\"",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
-    "start": "cd server && NODE_ENV=production npx tsx index.ts",
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down"
   },

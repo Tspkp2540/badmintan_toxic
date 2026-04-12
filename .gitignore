@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Go
+server/badminton-server
+server/badminton-server.exe
+
 # SQLite data
 data/
 server/data/
