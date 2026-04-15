@@ -131,7 +131,6 @@ func migrateDB() {
 	CREATE INDEX IF NOT EXISTS idx_users_rank_points ON users(rank_points DESC);
 	CREATE INDEX IF NOT EXISTS idx_users_level ON users(level DESC);
 	CREATE INDEX IF NOT EXISTS idx_courts_status ON courts(status);
-	CREATE INDEX IF NOT EXISTS idx_matches_court ON matches(court_id);
 	`
 
 	if _, err := sqlDB.Exec(schema); err != nil {
@@ -143,6 +142,7 @@ func migrateDB() {
 
 	// Add court_id column to matches if it doesn't exist
 	sqlDB.Exec(`ALTER TABLE matches ADD COLUMN court_id TEXT REFERENCES courts(id)`)
+	sqlDB.Exec(`CREATE INDEX IF NOT EXISTS idx_matches_court ON matches(court_id)`)
 
 	// Add skill columns to users if they don't exist
 	sqlDB.Exec(`ALTER TABLE users ADD COLUMN skill_level TEXT NOT NULL DEFAULT 'BG1' CHECK (skill_level IN ('BG1', 'BG2', 'S', 'N', 'P-', 'P', 'P+'))`)
