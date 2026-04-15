@@ -253,7 +253,7 @@ func handleGetUsers(w http.ResponseWriter, r *http.Request) {
 			&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.FullName, &u.Role, &u.AvatarURL,
 			&u.SkillLevel, &u.SkillStars, &u.Level, &u.Exp, &u.ExpToNextLevel, &u.Rank,
 			&u.Wins, &u.Losses, &u.Draws, &u.TotalMatches,
-			&u.WinRate, &u.Points, &u.RankPoints, &u.CreatedAt, &u.UpdatedAt,
+			&u.WinRate, &u.Points, &u.RankPoints, &u.PromoWins, &u.PromoLosses, &u.CreatedAt, &u.UpdatedAt,
 		)
 		if err != nil {
 			continue
