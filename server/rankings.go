@@ -24,7 +24,7 @@ func handleGetRankings(w http.ResponseWriter, r *http.Request) {
 	sqlDB.QueryRow("SELECT COUNT(*) FROM users WHERE total_matches > 0").Scan(&totalPlayers)
 
 	rows, err := sqlDB.Query(`
-		SELECT id, username, full_name, avatar_url, level, rank, wins, losses, win_rate, total_matches, points, rank_points
+		SELECT id, username, full_name, avatar_url, level, rank, skill_level, skill_stars, wins, losses, win_rate, total_matches, points, rank_points
 		FROM users WHERE total_matches > 0
 		ORDER BY rank_points DESC, wins DESC
 		LIMIT ? OFFSET ?`, limit, offset)
@@ -42,6 +42,8 @@ func handleGetRankings(w http.ResponseWriter, r *http.Request) {
 		AvatarURL    *string `json:"avatarUrl"`
 		Level        int     `json:"level"`
 		Rank         string  `json:"rank"`
+		SkillLevel   string  `json:"skillLevel"`
+		SkillStars   int     `json:"skillStars"`
 		Wins         int     `json:"wins"`
 		Losses       int     `json:"losses"`
 		WinRate      float64 `json:"winRate"`
@@ -56,7 +58,7 @@ func handleGetRankings(w http.ResponseWriter, r *http.Request) {
 		var avatar sql.NullString
 		var rankPoints int
 		rows.Scan(&e.UserID, &e.Username, &e.FullName, &avatar, &e.Level, &e.Rank,
-			&e.Wins, &e.Losses, &e.WinRate, &e.TotalMatches, &e.Points, &rankPoints)
+			&e.SkillLevel, &e.SkillStars, &e.Wins, &e.Losses, &e.WinRate, &e.TotalMatches, &e.Points, &rankPoints)
 		e.Position = offset + i + 1
 		if avatar.Valid {
 			e.AvatarURL = &avatar.String

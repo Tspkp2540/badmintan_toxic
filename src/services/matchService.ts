@@ -12,7 +12,7 @@ export const matchService = {
     return response.data
   },
 
-  async createMatch(data: { name: string; matchType: string; matchMode: string; maxSets: number }) {
+  async createMatch(data: { courtId: string; name: string; matchType: string; matchMode: string; maxSets: number }) {
     const response = await apiClient.post('/matches', data)
     return response.data
   },
@@ -44,6 +44,11 @@ export const matchService = {
 
   async leaveMatch(id: string) {
     const response = await apiClient.post(`/matches/${id}/leave`)
+    return response.data
+  },
+
+  async updateSkillLevel(userId: string, skillLevel: string, skillStars: number) {
+    const response = await apiClient.put('/matches/skill-level', { userId, skillLevel, skillStars })
     return response.data
   },
 }

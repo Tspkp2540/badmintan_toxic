@@ -16,6 +16,8 @@ type matchPlayerResp struct {
 	AvatarURL        *string `json:"avatarUrl"`
 	Level            int     `json:"level"`
 	Rank             string  `json:"rank"`
+	SkillLevel       string  `json:"skillLevel"`
+	SkillStars       int     `json:"skillStars"`
 	Team             string  `json:"team"`
 	ExpGained        int     `json:"expGained"`
 	RankPointsGained int     `json:"rankPointsGained"`
@@ -35,6 +37,7 @@ type refereeResp struct {
 
 type matchResponse struct {
 	ID         string            `json:"id"`
+	CourtID    *string           `json:"courtId"`
 	Name       string            `json:"name"`
 	MatchType  string            `json:"matchType"`
 	MatchMode  string            `json:"matchMode"`
@@ -52,17 +55,20 @@ type matchResponse struct {
 
 func buildMatchResponse(matchID string) (*matchResponse, error) {
 	var m matchResponse
-	var winnerTeam, startedAt, endedAt, refereeID sql.NullString
+	var winnerTeam, startedAt, endedAt, refereeID, courtID sql.NullString
 
-	err := sqlDB.QueryRow(`SELECT id, room_name, match_type, match_mode, max_sets, status,
+	err := sqlDB.QueryRow(`SELECT id, court_id, room_name, match_type, match_mode, max_sets, status,
 		winner_team, referee_id, created_by, started_at, ended_at, created_at
 		FROM matches WHERE id = ?`, matchID).Scan(
-		&m.ID, &m.Name, &m.MatchType, &m.MatchMode, &m.MaxSets, &m.Status,
+		&m.ID, &courtID, &m.Name, &m.MatchType, &m.MatchMode, &m.MaxSets, &m.Status,
 		&winnerTeam, &refereeID, &m.CreatedBy, &startedAt, &endedAt, &m.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 
+	if courtID.Valid {
+		m.CourtID = &courtID.String
+	}
 	if winnerTeam.Valid {
 		m.WinnerTeam = &winnerTeam.String
 	}
@@ -85,7 +91,8 @@ func buildMatchResponse(matchID string) (*matchResponse, error) {
 
 	// Players
 	pRows, _ := sqlDB.Query(`
-		SELECT mp.user_id, u.username, u.full_name, u.avatar_url, u.level, u.rank, mp.team, mp.exp_gained, mp.rank_points_gained
+		SELECT mp.user_id, u.username, u.full_name, u.avatar_url, u.level, u.rank, u.skill_level, u.skill_stars,
+		       mp.team, mp.exp_gained, mp.rank_points_gained
 		FROM match_players mp JOIN users u ON u.id = mp.user_id
 		WHERE mp.match_id = ?`, matchID)
 	if pRows != nil {
@@ -97,7 +104,7 @@ func buildMatchResponse(matchID string) (*matchResponse, error) {
 			var p matchPlayerResp
 			var avatar sql.NullString
 			pRows.Scan(&p.UserID, &p.Username, &p.FullName, &avatar, &p.Level, &p.Rank,
-				&p.Team, &p.ExpGained, &p.RankPointsGained)
+				&p.SkillLevel, &p.SkillStars, &p.Team, &p.ExpGained, &p.RankPointsGained)
 			if avatar.Valid {
 				p.AvatarURL = &avatar.String
 			}
@@ -157,6 +164,7 @@ func handleGetMatches(w http.ResponseWriter, r *http.Request) {
 func handleCreateMatch(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 	var req struct {
+		CourtID   string `json:"courtId"`
 		Name      string `json:"name"`
 		MatchType string `json:"matchType"`
 		MatchMode string `json:"matchMode"`
@@ -171,21 +179,61 @@ func handleCreateMatch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "กรุณากรอกข้อมูลให้ครบ")
 		return
 	}
+	if req.CourtID == "" {
+		writeError(w, 400, "กรุณาเลือกสนาม")
+		return
+	}
 	if req.MatchType != "singles" && req.MatchType != "doubles" {
 		writeError(w, 400, "matchType ต้องเป็น singles หรือ doubles")
 		return
 	}
-	if req.MatchMode != "casual" && req.MatchMode != "ranked" {
-		writeError(w, 400, "matchMode ต้องเป็น casual หรือ ranked")
+	if req.MatchMode != "casual" && req.MatchMode != "ranked" && req.MatchMode != "skill_test" {
+		writeError(w, 400, "matchMode ต้องเป็น casual, ranked หรือ skill_test")
 		return
 	}
 	if req.MaxSets == 0 {
 		req.MaxSets = 3
 	}
 
+	// Verify court exists and is open
+	var courtStatus string
+	var maxRooms int
+	err := sqlDB.QueryRow("SELECT status, max_rooms FROM courts WHERE id = ?", req.CourtID).Scan(&courtStatus, &maxRooms)
+	if err != nil {
+		writeError(w, 404, "ไม่พบสนาม")
+		return
+	}
+	if courtStatus != "open" {
+		writeError(w, 400, "สนามนี้ปิดอยู่")
+		return
+	}
+
+	// skill_test mode: only leaders assigned to this court can create
+	if req.MatchMode == "skill_test" {
+		userRole := getUserRole(r)
+		if userRole != "admin" {
+			var isCourtLeader int
+			sqlDB.QueryRow("SELECT COUNT(*) FROM court_leaders WHERE court_id = ? AND user_id = ?",
+				req.CourtID, userID).Scan(&isCourtLeader)
+			if isCourtLeader == 0 {
+				writeError(w, 403, "เฉพาะหัวก๊วนที่ได้รับมอบหมายสนามนี้เท่านั้นที่สร้างแมตช์ทดสอบระดับได้")
+				return
+			}
+		}
+	}
+
+	// Check room limit
+	var activeRooms int
+	sqlDB.QueryRow(`SELECT COUNT(*) FROM matches WHERE court_id = ? AND status IN ('waiting', 'playing', 'scoring')`,
+		req.CourtID).Scan(&activeRooms)
+	if activeRooms >= maxRooms {
+		writeError(w, 400, "สนามเต็มแล้ว ไม่สามารถสร้างห้องเพิ่มได้")
+		return
+	}
+
 	id := uuid.New().String()
-	sqlDB.Exec(`INSERT INTO matches (id, room_name, match_type, match_mode, max_sets, created_by)
-		VALUES (?, ?, ?, ?, ?, ?)`, id, req.Name, req.MatchType, req.MatchMode, req.MaxSets, userID)
+	sqlDB.Exec(`INSERT INTO matches (id, court_id, room_name, match_type, match_mode, max_sets, created_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, id, req.CourtID, req.Name, req.MatchType, req.MatchMode, req.MaxSets, userID)
 
 	sqlDB.Exec(`INSERT INTO match_players (match_id, user_id, team) VALUES (?, ?, 'A')`, id, userID)
 
@@ -350,8 +398,9 @@ func handleSubmitScores(w http.ResponseWriter, r *http.Request) {
 	matchID := chi.URLParam(r, "id")
 
 	var status, matchMode string
-	err := sqlDB.QueryRow("SELECT status, match_mode FROM matches WHERE id = ?", matchID).
-		Scan(&status, &matchMode)
+	var courtID sql.NullString
+	err := sqlDB.QueryRow("SELECT status, match_mode, court_id FROM matches WHERE id = ?", matchID).
+		Scan(&status, &matchMode, &courtID)
 	if err != nil {
 		writeError(w, 404, "ไม่พบห้อง")
 		return
@@ -407,17 +456,57 @@ func handleSubmitScores(w http.ResponseWriter, r *http.Request) {
 
 	pRows, _ := tx.Query("SELECT id, user_id, team FROM match_players WHERE match_id = ?", matchID)
 	type playerInfo struct {
-		ID     int
-		UserID string
-		Team   string
+		ID         int
+		UserID     string
+		Team       string
+		SkillLevel string
+		SkillStars int
 	}
 	var players []playerInfo
 	for pRows.Next() {
 		var p playerInfo
 		pRows.Scan(&p.ID, &p.UserID, &p.Team)
+		// Fetch skill level for this player
+		tx.QueryRow("SELECT skill_level, skill_stars FROM users WHERE id = ?", p.UserID).
+			Scan(&p.SkillLevel, &p.SkillStars)
 		players = append(players, p)
 	}
 	pRows.Close()
+
+	// Calculate average skill per team for scaling
+	var teamASkill, teamBSkill float64
+	var teamACount, teamBCount int
+	for _, p := range players {
+		sv := getSkillValue(p.SkillLevel, p.SkillStars)
+		if p.Team == "A" {
+			teamASkill += sv
+			teamACount++
+		} else {
+			teamBSkill += sv
+			teamBCount++
+		}
+	}
+	if teamACount > 0 {
+		teamASkill /= float64(teamACount)
+	}
+	if teamBCount > 0 {
+		teamBSkill /= float64(teamBCount)
+	}
+
+	// Determine winner/loser avg skill for scaling
+	var winnerAvgSkill, loserAvgSkill float64
+	if winner == "A" {
+		winnerAvgSkill, loserAvgSkill = teamASkill, teamBSkill
+	} else if winner == "B" {
+		winnerAvgSkill, loserAvgSkill = teamBSkill, teamASkill
+	}
+	expMult, rpLosePenalty := calcSkillScaling(winnerAvgSkill, loserAvgSkill)
+
+	// Get court bonus EXP percent if match is in a court
+	bonusExpPercent := 0
+	if courtID.Valid {
+		sqlDB.QueryRow("SELECT bonus_exp_percent FROM courts WHERE id = ?", courtID.String).Scan(&bonusExpPercent)
+	}
 
 	rewards := expRewards[matchMode]
 
@@ -434,7 +523,8 @@ func handleSubmitScores(w http.ResponseWriter, r *http.Request) {
 				rpGained = rankPointRewards["draw"]
 			}
 		} else if isWinner {
-			expGained = rewards["win"]
+			baseExp := rewards["win"]
+			expGained = int(math.Round(float64(baseExp) * expMult))
 			winInc = 1
 			if matchMode == "ranked" {
 				rpGained = rankPointRewards["win"]
@@ -443,8 +533,15 @@ func handleSubmitScores(w http.ResponseWriter, r *http.Request) {
 			expGained = rewards["lose"]
 			lossInc = 1
 			if matchMode == "ranked" {
-				rpGained = rankPointRewards["lose"]
+				baseRP := rankPointRewards["lose"]
+				rpGained = int(math.Round(float64(baseRP) * rpLosePenalty))
 			}
+		}
+
+		// Apply court bonus EXP
+		if bonusExpPercent > 0 && expGained > 0 {
+			bonus := int(math.Round(float64(expGained) * float64(bonusExpPercent) / 100.0))
+			expGained += bonus
 		}
 
 		tx.Exec("UPDATE match_players SET exp_gained = ?, rank_points_gained = ? WHERE id = ?",
@@ -515,4 +612,64 @@ func handleLeaveMatch(w http.ResponseWriter, r *http.Request) {
 
 	m, _ := buildMatchResponse(matchID)
 	writeJSON(w, 200, m)
+}
+
+// handleUpdateSkillLevel allows leaders (assigned to the court) to update a player's skill level
+// This is used after skill_test matches
+func handleUpdateSkillLevel(w http.ResponseWriter, r *http.Request) {
+	callerID := getUserID(r)
+	callerRole := getUserRole(r)
+
+	var req struct {
+		UserID     string `json:"userId"`
+		SkillLevel string `json:"skillLevel"`
+		SkillStars int    `json:"skillStars"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		writeError(w, 400, "ข้อมูลไม่ถูกต้อง")
+		return
+	}
+
+	if req.UserID == "" || req.SkillLevel == "" {
+		writeError(w, 400, "กรุณาระบุผู้เล่นและระดับ")
+		return
+	}
+
+	// Validate skill level
+	if _, ok := skillLevelValue[req.SkillLevel]; !ok {
+		writeError(w, 400, "ระดับฝีมือไม่ถูกต้อง (BG1, BG2, S, N, P-, P, P+)")
+		return
+	}
+	if req.SkillStars < 1 || req.SkillStars > 5 {
+		writeError(w, 400, "ดาวต้องอยู่ระหว่าง 1-5")
+		return
+	}
+
+	// Admin can always update; leaders must be assigned to at least one court
+	if callerRole != "admin" {
+		if callerRole != "leader" {
+			writeError(w, 403, "เฉพาะ admin หรือหัวก๊วนเท่านั้น")
+			return
+		}
+		var courtCount int
+		sqlDB.QueryRow("SELECT COUNT(*) FROM court_leaders WHERE user_id = ?", callerID).Scan(&courtCount)
+		if courtCount == 0 {
+			writeError(w, 403, "คุณไม่ได้เป็นหัวก๊วนของสนามใดๆ")
+			return
+		}
+	}
+
+	_, err := sqlDB.Exec("UPDATE users SET skill_level = ?, skill_stars = ?, updated_at = datetime('now') WHERE id = ?",
+		req.SkillLevel, req.SkillStars, req.UserID)
+	if err != nil {
+		writeError(w, 500, "เกิดข้อผิดพลาด")
+		return
+	}
+
+	writeJSON(w, 200, map[string]interface{}{
+		"message":    "อัปเดตระดับฝีมือเรียบร้อย",
+		"userId":     req.UserID,
+		"skillLevel": req.SkillLevel,
+		"skillStars": req.SkillStars,
+	})
 }

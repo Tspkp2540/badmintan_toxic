@@ -6,14 +6,14 @@ import { useAuthStore } from '@/stores/auth'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const email = ref('')
+const username = ref('')
 const password = ref('')
 const errorMsg = ref('')
 
 async function handleLogin() {
   errorMsg.value = ''
   try {
-    await authStore.login({ email: email.value, password: password.value })
+    await authStore.login({ username: username.value, password: password.value })
     router.push('/dashboard')
   } catch {
     errorMsg.value = authStore.error || 'เข้าสู่ระบบไม่สำเร็จ'
@@ -31,12 +31,12 @@ async function handleLogin() {
 
       <form @submit.prevent="handleLogin" class="auth-form">
         <div class="form-group">
-          <label for="email">อีเมล</label>
+          <label for="username">ชื่อผู้ใช้</label>
           <input
-            id="email"
-            v-model="email"
-            type="email"
-            placeholder="you@example.com"
+            id="username"
+            v-model="username"
+            type="text"
+            placeholder="ชื่อผู้ใช้ของคุณ"
             required
           />
         </div>

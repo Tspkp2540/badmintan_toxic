@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getRankByLevel, getExpForLevel, RANK_THRESHOLDS } from '@/models/User'
 import LevelBadge from '@/components/LevelBadge.vue'
 import RankBadge from '@/components/RankBadge.vue'
+import SkillBadge from '@/components/SkillBadge.vue'
 
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
@@ -37,6 +38,7 @@ const allRanks = Object.entries(RANK_THRESHOLDS).map(([name, minLevel]) => ({
         <div class="badges">
           <LevelBadge :level="level" />
           <RankBadge :rank="rank" />
+          <SkillBadge :skill-level="user?.skillLevel ?? 'BG1'" :skill-stars="user?.skillStars ?? 1" />
         </div>
       </section>
 

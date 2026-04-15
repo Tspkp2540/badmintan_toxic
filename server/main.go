@@ -49,6 +49,34 @@ func main() {
 			r.With(authMiddleware).Put("/profile", handleUpdateProfile)
 		})
 
+		// User management (admin/leader only)
+		r.Route("/users", func(r chi.Router) {
+			r.Use(authMiddleware)
+			r.With(requireRole("admin", "leader", "vice_leader")).Get("/", handleGetUsers)
+			r.With(requireRole("admin", "leader")).Put("/role", handleUpdateUserRole)
+		})
+
+		// Courts (server browser)
+		r.Route("/courts", func(r chi.Router) {
+			r.Get("/", handleGetCourts)           // public: browse courts
+			r.Get("/{id}", handleGetCourt)         // public: court detail
+			r.Get("/{id}/matches", handleGetCourtMatches) // public: matches in a court
+
+			r.Group(func(r chi.Router) {
+				r.Use(authMiddleware)
+				// Leader can update bonus EXP on assigned courts
+				r.With(requireRole("admin", "leader")).Put("/{id}/bonus", handleUpdateCourtBonus)
+
+				r.With(requireRole("admin")).Post("/", handleCreateCourt)          // admin only: create court
+				r.With(requireRole("admin")).Put("/{id}", handleUpdateCourt)       // admin only: update court
+				r.With(requireRole("admin")).Delete("/{id}", handleDeleteCourt)    // admin only: close court
+
+				// Court leader management (admin only)
+				r.With(requireRole("admin")).Post("/{id}/leaders", handleAssignCourtLeader)
+				r.With(requireRole("admin")).Delete("/{id}/leaders", handleRemoveCourtLeader)
+			})
+		})
+
 		r.Route("/rankings", func(r chi.Router) {
 			r.Get("/", handleGetRankings)
 			r.Get("/{userId}", handleGetPlayerRank)
@@ -65,7 +93,11 @@ func main() {
 			r.Post("/{id}/end", handleEndMatch)
 			r.Post("/{id}/score", handleSubmitScores)
 			r.Post("/{id}/leave", handleLeaveMatch)
+			r.With(requireRole("admin", "leader")).Put("/skill-level", handleUpdateSkillLevel)
 		})
+
+		// My court leaderships
+		r.With(authMiddleware).With(requireRole("admin", "leader", "vice_leader")).Get("/my-courts", handleGetMyCourtLeaderships)
 	})
 
 	// Serve static frontend in production

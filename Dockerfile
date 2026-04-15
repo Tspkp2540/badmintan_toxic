@@ -11,9 +11,10 @@ RUN npm run build
 FROM golang:1.22-alpine AS backend
 
 WORKDIR /app
-COPY server/go.mod ./
+COPY server/go.mod server/go.sum ./
+RUN go mod download
 COPY server/*.go ./
-RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o badminton-server .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o badminton-server .
 
 # ===== Stage 3: Production =====
 FROM alpine:3.19

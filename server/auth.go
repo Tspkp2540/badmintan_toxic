@@ -16,7 +16,10 @@ type userRow struct {
 	Email          string
 	PasswordHash   string
 	FullName       string
+	Role           string
 	AvatarURL      sql.NullString
+	SkillLevel     string
+	SkillStars     int
 	Level          int
 	Exp            int
 	ExpToNextLevel int
@@ -37,7 +40,10 @@ type userResponse struct {
 	Username       string  `json:"username"`
 	Email          string  `json:"email"`
 	FullName       string  `json:"fullName"`
+	Role           string  `json:"role"`
 	AvatarURL      *string `json:"avatarUrl"`
+	SkillLevel     string  `json:"skillLevel"`
+	SkillStars     int     `json:"skillStars"`
 	Level          int     `json:"level"`
 	Exp            int     `json:"exp"`
 	ExpToNextLevel int     `json:"expToNextLevel"`
@@ -59,7 +65,8 @@ func formatUserResp(u *userRow) userResponse {
 	}
 	return userResponse{
 		ID: u.ID, Username: u.Username, Email: u.Email,
-		FullName: u.FullName, AvatarURL: avatar,
+		FullName: u.FullName, Role: u.Role, AvatarURL: avatar,
+		SkillLevel: u.SkillLevel, SkillStars: u.SkillStars,
 		Level: u.Level, Exp: u.Exp, ExpToNextLevel: u.ExpToNextLevel,
 		Rank: u.Rank, Wins: u.Wins, Losses: u.Losses,
 		TotalMatches: u.TotalMatches, WinRate: u.WinRate,
@@ -68,15 +75,15 @@ func formatUserResp(u *userRow) userResponse {
 	}
 }
 
-const userSelectCols = `id, username, email, password_hash, full_name, avatar_url,
-	level, exp, exp_to_next_level, rank, wins, losses, draws, total_matches,
+const userSelectCols = `id, username, email, password_hash, full_name, role, avatar_url,
+	skill_level, skill_stars, level, exp, exp_to_next_level, rank, wins, losses, draws, total_matches,
 	win_rate, points, rank_points, created_at, updated_at`
 
 func scanUserRow(row *sql.Row) (*userRow, error) {
 	var u userRow
 	err := row.Scan(
-		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.FullName, &u.AvatarURL,
-		&u.Level, &u.Exp, &u.ExpToNextLevel, &u.Rank,
+		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.FullName, &u.Role, &u.AvatarURL,
+		&u.SkillLevel, &u.SkillStars, &u.Level, &u.Exp, &u.ExpToNextLevel, &u.Rank,
 		&u.Wins, &u.Losses, &u.Draws, &u.TotalMatches,
 		&u.WinRate, &u.Points, &u.RankPoints, &u.CreatedAt, &u.UpdatedAt,
 	)
@@ -138,7 +145,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Email    string `json:"email"`
+		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 	if err := readJSON(r, &req); err != nil {
@@ -146,19 +153,19 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		writeError(w, 400, "กรุณากรอกอีเมลและรหัสผ่าน")
+	if req.Username == "" || req.Password == "" {
+		writeError(w, 400, "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน")
 		return
 	}
 
-	user, err := scanUserRow(sqlDB.QueryRow(fmt.Sprintf("SELECT %s FROM users WHERE email = ?", userSelectCols), req.Email))
+	user, err := scanUserRow(sqlDB.QueryRow(fmt.Sprintf("SELECT %s FROM users WHERE username = ?", userSelectCols), req.Username))
 	if err != nil {
-		writeError(w, 401, "อีเมลหรือรหัสผ่านไม่ถูกต้อง")
+		writeError(w, 401, "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		writeError(w, 401, "อีเมลหรือรหัสผ่านไม่ถูกต้อง")
+		writeError(w, 401, "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
 		return
 	}
 
@@ -222,5 +229,88 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	sqlDB.Exec(query, values...)
 
 	user, _ := scanUserRow(sqlDB.QueryRow(fmt.Sprintf("SELECT %s FROM users WHERE id = ?", userSelectCols), userID))
+	writeJSON(w, 200, formatUserResp(user))
+}
+
+// handleGetUsers returns all users (admin/leader/vice_leader only)
+func handleGetUsers(w http.ResponseWriter, r *http.Request) {
+	rows, err := sqlDB.Query(fmt.Sprintf("SELECT %s FROM users ORDER BY created_at DESC", userSelectCols))
+	if err != nil {
+		writeError(w, 500, "เกิดข้อผิดพลาด")
+		return
+	}
+	defer rows.Close()
+
+	var users []userResponse
+	for rows.Next() {
+		var u userRow
+		err := rows.Scan(
+			&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.FullName, &u.Role, &u.AvatarURL,
+			&u.SkillLevel, &u.SkillStars, &u.Level, &u.Exp, &u.ExpToNextLevel, &u.Rank,
+			&u.Wins, &u.Losses, &u.Draws, &u.TotalMatches,
+			&u.WinRate, &u.Points, &u.RankPoints, &u.CreatedAt, &u.UpdatedAt,
+		)
+		if err != nil {
+			continue
+		}
+		users = append(users, formatUserResp(&u))
+	}
+	writeJSON(w, 200, users)
+}
+
+// handleUpdateUserRole allows admin/leader to change a user's role
+func handleUpdateUserRole(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID string `json:"userId"`
+		Role   string `json:"role"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		writeError(w, 400, "ข้อมูลไม่ถูกต้อง")
+		return
+	}
+
+	validRoles := map[string]bool{"admin": true, "leader": true, "vice_leader": true, "player": true}
+	if !validRoles[req.Role] {
+		writeError(w, 400, "บทบาทไม่ถูกต้อง")
+		return
+	}
+
+	if req.UserID == "" {
+		writeError(w, 400, "กรุณาระบุผู้ใช้")
+		return
+	}
+
+	callerRole := getUserRole(r)
+	callerID := getUserID(r)
+
+	// Prevent changing own role
+	if req.UserID == callerID {
+		writeError(w, 400, "ไม่สามารถเปลี่ยนบทบาทตัวเองได้")
+		return
+	}
+
+	// Leader can only assign vice_leader/player, not admin/leader
+	if callerRole == "leader" && (req.Role == "admin" || req.Role == "leader") {
+		writeError(w, 403, "หัวหน้าไม่สามารถแต่งตั้ง admin หรือ leader ได้")
+		return
+	}
+
+	// Vice leader cannot change roles
+	if callerRole == "vice_leader" {
+		writeError(w, 403, "รองหัวหน้าไม่สามารถเปลี่ยนบทบาทได้")
+		return
+	}
+
+	_, err := sqlDB.Exec("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?", req.Role, req.UserID)
+	if err != nil {
+		writeError(w, 500, "เกิดข้อผิดพลาด")
+		return
+	}
+
+	user, err := scanUserRow(sqlDB.QueryRow(fmt.Sprintf("SELECT %s FROM users WHERE id = ?", userSelectCols), req.UserID))
+	if err != nil {
+		writeError(w, 404, "ไม่พบผู้ใช้")
+		return
+	}
 	writeJSON(w, 200, formatUserResp(user))
 }

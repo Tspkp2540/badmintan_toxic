@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '@/models/User'
+import { UserRole } from '@/models/User'
 import { authService } from '@/services/authService'
 import type { LoginRequest, RegisterRequest } from '@/models/User'
 
@@ -14,6 +15,12 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!token.value)
   const playerLevel = computed(() => user.value?.level ?? 1)
   const playerRank = computed(() => user.value?.rank ?? 'Bronze')
+  const userRole = computed(() => user.value?.role ?? UserRole.GUEST)
+  const isAdmin = computed(() => userRole.value === UserRole.ADMIN)
+  const isLeader = computed(() => userRole.value === UserRole.LEADER)
+  const isViceLeader = computed(() => userRole.value === UserRole.VICE_LEADER)
+  const isStaff = computed(() => [UserRole.ADMIN, UserRole.LEADER, UserRole.VICE_LEADER].includes(userRole.value as any))
+  const canManageRoles = computed(() => [UserRole.ADMIN, UserRole.LEADER].includes(userRole.value as any))
 
   /**
    * เรียกตอนเริ่มต้น app เพื่อ restore session
@@ -88,6 +95,12 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     playerLevel,
     playerRank,
+    userRole,
+    isAdmin,
+    isLeader,
+    isViceLeader,
+    isStaff,
+    canManageRoles,
     initSession,
     login,
     register,

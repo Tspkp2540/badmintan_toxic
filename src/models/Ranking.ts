@@ -6,6 +6,8 @@ export interface RankingEntry {
   avatarUrl?: string
   level: number
   rank: string
+  skillLevel: string
+  skillStars: number
   wins: number
   losses: number
   winRate: number

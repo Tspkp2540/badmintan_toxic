@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { matchService } from '@/services/matchService'
+import { courtService } from '@/services/courtService'
 
 export interface MatchPlayer {
   userId: string
@@ -9,6 +10,8 @@ export interface MatchPlayer {
   avatarUrl?: string
   level: number
   rank: string
+  skillLevel: string
+  skillStars: number
   team: 'A' | 'B'
   expGained: number
   rankPointsGained: number
@@ -24,7 +27,7 @@ export interface MatchRoom {
   id: string
   name: string
   matchType: 'singles' | 'doubles'
-  matchMode: 'casual' | 'ranked'
+  matchMode: 'casual' | 'ranked' | 'skill_test'
   maxSets: number
   status: 'waiting' | 'playing' | 'scoring' | 'finished' | 'cancelled'
   winnerTeam: 'A' | 'B' | 'draw' | null
@@ -67,6 +70,18 @@ export const useCourtStore = defineStore('court', () => {
     }
   }
 
+  async function fetchRoomsByCourt(courtId: string) {
+    loading.value = true
+    error.value = null
+    try {
+      rooms.value = await courtService.getCourtMatches(courtId)
+    } catch (e: any) {
+      error.value = e.response?.data?.message || 'โหลดห้องไม่สำเร็จ'
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function fetchRoom(id: string) {
     try {
       const room = await matchService.getMatch(id)
@@ -83,6 +98,7 @@ export const useCourtStore = defineStore('court', () => {
   }
 
   async function createRoom(options: {
+    courtId: string
     name: string
     matchType: string
     matchMode: string
@@ -195,6 +211,7 @@ export const useCourtStore = defineStore('court', () => {
     loading,
     error,
     fetchRooms,
+    fetchRoomsByCourt,
     fetchRoom,
     createRoom,
     joinRoom,

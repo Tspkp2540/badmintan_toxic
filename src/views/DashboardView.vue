@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { getRankByLevel, getExpForLevel, PlayerRank } from '@/models/User'
+import { UserRoleLabels } from '@/models/User'
 import LevelBadge from '@/components/LevelBadge.vue'
 import RankBadge from '@/components/RankBadge.vue'
+import SkillBadge from '@/components/SkillBadge.vue'
 
 const authStore = useAuthStore()
 
@@ -38,8 +40,9 @@ const rankColors: Record<string, string> = {
       <h1>🏸 Badminton Hub</h1>
       <nav>
         <router-link to="/dashboard">แดชบอร์ด</router-link>
-        <router-link to="/court">สนาม</router-link>
+        <router-link to="/courts">สนาม</router-link>
         <router-link to="/ranking">อันดับ</router-link>
+        <router-link v-if="authStore.isStaff" to="/manage-users">จัดการผู้ใช้</router-link>
         <router-link to="/profile">โปรไฟล์</router-link>
         <button @click="authStore.logout()" class="btn-logout">ออกจากระบบ</button>
       </nav>
@@ -55,12 +58,14 @@ const rankColors: Record<string, string> = {
           <div>
             <h2>{{ user?.fullName ?? 'นักแบดมินตัน' }}</h2>
             <p class="username">@{{ user?.username ?? 'player' }}</p>
+            <p class="user-role">{{ UserRoleLabels[user?.role ?? 'player'] }}</p>
           </div>
         </div>
 
         <div class="level-rank">
           <LevelBadge :level="level" />
           <RankBadge :rank="rank" />
+          <SkillBadge :skill-level="user?.skillLevel ?? 'BG1'" :skill-stars="user?.skillStars ?? 1" />
         </div>
 
         <!-- EXP Bar -->
@@ -93,7 +98,7 @@ const rankColors: Record<string, string> = {
       <section class="quick-actions">
         <h3>เมนูด่วน</h3>
         <div class="actions-grid">
-          <router-link to="/court" class="action-card">
+          <router-link to="/courts" class="action-card">
             <span class="action-icon">🏸</span>
             <span>เข้าสนาม</span>
           </router-link>
@@ -208,6 +213,13 @@ const rankColors: Record<string, string> = {
 .username {
   color: #64748b;
   font-size: 0.9rem;
+}
+
+.user-role {
+  color: #818cf8;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: 0.2rem;
 }
 
 .level-rank {

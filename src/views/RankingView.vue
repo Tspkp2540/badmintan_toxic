@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { rankingService } from '@/services/rankingService'
 import type { RankingEntry } from '@/models/Ranking'
 import RankBadge from '@/components/RankBadge.vue'
+import SkillBadge from '@/components/SkillBadge.vue'
 
 const rankings = ref<RankingEntry[]>([])
 const loading = ref(true)
@@ -50,6 +51,7 @@ function getMedalEmoji(position: number): string {
             <th>ผู้เล่น</th>
             <th>เลเวล</th>
             <th>แร้งค์</th>
+            <th>ระดับฝีมือ</th>
             <th>ชนะ</th>
             <th>แพ้</th>
             <th>อัตราชนะ</th>
@@ -69,6 +71,7 @@ function getMedalEmoji(position: number): string {
             </td>
             <td>Lv.{{ entry.level }}</td>
             <td><RankBadge :rank="entry.rank" /></td>
+            <td><SkillBadge :skill-level="entry.skillLevel" :skill-stars="entry.skillStars" /></td>
             <td class="win">{{ entry.wins }}</td>
             <td class="loss">{{ entry.losses }}</td>
             <td>{{ entry.winRate.toFixed(1) }}%</td>

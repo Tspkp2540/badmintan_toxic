@@ -38,9 +38,25 @@ const routes = [
   },
   {
     path: '/court',
+    redirect: '/courts',
+  },
+  {
+    path: '/courts',
+    name: 'Courts',
+    component: () => import('@/views/CourtListView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/court/:id',
     name: 'Court',
     component: () => import('@/views/CourtView.vue'),
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/manage-users',
+    name: 'ManageUsers',
+    component: () => import('@/views/ManageUsersView.vue'),
+    meta: { requiresAuth: true, requiredRoles: ['admin', 'leader', 'vice_leader'] },
   },
 ]
 
@@ -64,6 +80,13 @@ router.beforeEach(async (to, _from, next) => {
     next({ name: 'Login' })
   } else if (to.meta.guest && authStore.isAuthenticated) {
     next({ name: 'Dashboard' })
+  } else if (to.meta.requiredRoles) {
+    const roles = to.meta.requiredRoles as string[]
+    if (!roles.includes(authStore.userRole)) {
+      next({ name: 'Dashboard' })
+    } else {
+      next()
+    }
   } else {
     next()
   }

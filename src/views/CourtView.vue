@@ -1,21 +1,32 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useCourtStore, type MatchRoom, type MatchSet } from '@/stores/court'
 import { useAuthStore } from '@/stores/auth'
+import { courtService, type Court } from '@/services/courtService'
 import RankBadge from '@/components/RankBadge.vue'
 import LevelBadge from '@/components/LevelBadge.vue'
+import SkillBadge from '@/components/SkillBadge.vue'
 
+const route = useRoute()
 const courtStore = useCourtStore()
 const authStore = useAuthStore()
 
+const courtId = computed(() => route.params.id as string)
+const courtInfo = ref<Court | null>(null)
 const currentUser = computed(() => authStore.user)
 
-// === Load rooms on mount ===
-onMounted(() => {
-  courtStore.fetchRooms()
+// === Load court info & rooms on mount ===
+onMounted(async () => {
+  try {
+    courtInfo.value = await courtService.getCourt(courtId.value)
+  } catch {
+    // court not found
+  }
+  courtStore.fetchRoomsByCourt(courtId.value)
   // Poll for updates every 5 seconds
   pollInterval = setInterval(() => {
-    courtStore.fetchRooms()
+    courtStore.fetchRoomsByCourt(courtId.value)
     if (activeRoom.value) {
       courtStore.fetchRoom(activeRoom.value.id)
     }
@@ -31,8 +42,14 @@ onUnmounted(() => {
 const showCreateDialog = ref(false)
 const newRoomName = ref('')
 const newMatchType = ref<'singles' | 'doubles'>('singles')
-const newMatchMode = ref<'casual' | 'ranked'>('casual')
+const newMatchMode = ref<'casual' | 'ranked' | 'skill_test'>('casual')
 const newMaxSets = ref(3)
+
+const isCourtLeader = computed(() => {
+  if (!currentUser.value || !courtInfo.value) return false
+  if (authStore.isAdmin) return true
+  return courtInfo.value.leaders?.some(l => l.userId === currentUser.value!.id) ?? false
+})
 
 function openCreateDialog() {
   newRoomName.value = ''
@@ -45,6 +62,7 @@ function openCreateDialog() {
 async function createRoom() {
   if (!newRoomName.value.trim()) return
   await courtStore.createRoom({
+    courtId: courtId.value,
     name: newRoomName.value.trim(),
     matchType: newMatchType.value,
     matchMode: newMatchMode.value,
@@ -151,8 +169,9 @@ watch(
   <div class="court-page">
     <header class="page-header">
       <div class="header-left">
-        <router-link to="/dashboard" class="back-link">← กลับ</router-link>
-        <h1>🏸 สนามแบดมินตัน</h1>
+        <router-link to="/courts" class="back-link">← กลับ</router-link>
+        <h1>🏸 {{ courtInfo?.name ?? 'สนามแบดมินตัน' }}</h1>
+        <span v-if="courtInfo?.location" class="court-loc">📍 {{ courtInfo.location }}</span>
       </div>
       <button class="btn-create" @click="openCreateDialog">+ สร้างห้อง</button>
     </header>
@@ -187,7 +206,7 @@ watch(
             </div>
             <div class="room-card-info">
               <span>{{ room.matchType === 'singles' ? '1v1' : '2v2' }}</span>
-              <span :class="room.matchMode">{{ room.matchMode === 'ranked' ? '⚔️ แรงค์' : '🎮 แคชชวล' }}</span>
+              <span :class="room.matchMode">{{ room.matchMode === 'ranked' ? '⚔️ แรงค์' : room.matchMode === 'skill_test' ? '🎯 ทดสอบระดับ' : '🎮 แคชชวล' }}</span>
               <span>👥 {{ room.players.length }}/{{ room.matchType === 'singles' ? 2 : 4 }}</span>
             </div>
           </div>
@@ -201,7 +220,7 @@ watch(
               <h2>{{ activeRoom.name }}</h2>
               <div class="room-meta">
                 <span class="badge" :class="activeRoom.matchType">{{ activeRoom.matchType === 'singles' ? 'เดี่ยว (1v1)' : 'คู่ (2v2)' }}</span>
-                <span class="badge" :class="activeRoom.matchMode">{{ activeRoom.matchMode === 'ranked' ? '⚔️ วัดแรงค์' : '🎮 แคชชวล' }}</span>
+                <span class="badge" :class="activeRoom.matchMode">{{ activeRoom.matchMode === 'ranked' ? '⚔️ วัดแรงค์' : activeRoom.matchMode === 'skill_test' ? '🎯 ทดสอบระดับ' : '🎮 แคชชวล' }}</span>
                 <span class="badge sets">Best of {{ activeRoom.maxSets }}</span>
               </div>
             </div>
@@ -242,6 +261,7 @@ watch(
                       <div class="slot-badges">
                         <LevelBadge :level="player.level" />
                         <RankBadge :rank="player.rank" />
+                        <SkillBadge :skill-level="player.skillLevel" :skill-stars="player.skillStars" />
                       </div>
                     </div>
                   </div>
@@ -284,6 +304,7 @@ watch(
                       <div class="slot-badges">
                         <LevelBadge :level="player.level" />
                         <RankBadge :rank="player.rank" />
+                        <SkillBadge :skill-level="player.skillLevel" :skill-stars="player.skillStars" />
                       </div>
                     </div>
                   </div>
@@ -401,7 +422,7 @@ watch(
                     <span class="reward-name">{{ player.fullName }}</span>
                     <span class="reward-exp">+{{ player.expGained }} EXP</span>
                     <span
-                      v-if="activeRoom.matchMode === 'ranked'"
+                      v-if="activeRoom.matchMode === 'ranked' || activeRoom.matchMode === 'skill_test'"
                       class="reward-rp"
                       :class="{ negative: player.rankPointsGained < 0 }"
                     >
@@ -463,6 +484,10 @@ watch(
               <label class="radio-option" :class="{ selected: newMatchMode === 'ranked' }">
                 <input type="radio" v-model="newMatchMode" value="ranked" />
                 <span>⚔️ วัดแรงค์</span>
+              </label>
+              <label v-if="isCourtLeader" class="radio-option" :class="{ selected: newMatchMode === 'skill_test' }">
+                <input type="radio" v-model="newMatchMode" value="skill_test" />
+                <span>🎯 ทดสอบระดับ</span>
               </label>
             </div>
           </div>
@@ -530,6 +555,11 @@ watch(
 .page-header h1 {
   font-size: 1.4rem;
   color: #38bdf8;
+}
+
+.court-loc {
+  color: #64748b;
+  font-size: 0.85rem;
 }
 
 .btn-create {
