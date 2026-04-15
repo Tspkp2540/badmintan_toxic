@@ -27,7 +27,6 @@ COPY --from=frontend /app/dist ./dist
 RUN mkdir -p /app/data
 
 ENV NODE_ENV=production
-ENV PORT=3000
 ENV DB_PATH=/app/data/badminton.db
 
 EXPOSE 3000
