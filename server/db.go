@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )
 
@@ -169,19 +170,26 @@ func migrateDB() {
 }
 
 func seedAdmin() {
-	var exists string
-	err := sqlDB.QueryRow("SELECT id FROM users WHERE username = 'admin'").Scan(&exists)
-	if err == nil {
-		return // admin already exists
+	const adminPassword = "mHv8:bdc[f,bomyo]"
+	hash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), 10)
+	if err != nil {
+		log.Printf("⚠️ Failed to hash admin password: %v", err)
+		return
 	}
 
-	// bcrypt hash of the admin password (cost 10)
-	const adminHash = "$2b$10$3f0Dt./DGgZv4qBaILhP8ufUU5Lp1s5ySGjEWT4h8h5yUH.Zkewsy"
+	var exists string
+	err = sqlDB.QueryRow("SELECT id FROM users WHERE username = 'admin'").Scan(&exists)
+	if err == nil {
+		// admin exists — update hash to ensure it's Go-compatible
+		sqlDB.Exec("UPDATE users SET password_hash = ? WHERE username = 'admin'", string(hash))
+		fmt.Println("✅ Admin password hash updated")
+		return
+	}
 
 	id := "admin-" + fmt.Sprintf("%s", "00000000-0000-0000-0000-000000000001")
 	_, err = sqlDB.Exec(`INSERT INTO users (id, username, email, password_hash, full_name, role, exp_to_next_level)
 		VALUES (?, 'admin', 'admin@badmintonhub.local', ?, 'Administrator', 'admin', 100)`,
-		id, adminHash)
+		id, string(hash))
 	if err != nil {
 		log.Printf("⚠️ Failed to seed admin: %v", err)
 		return
