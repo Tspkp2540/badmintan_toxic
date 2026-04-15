@@ -58,8 +58,8 @@ func main() {
 
 		// Courts (server browser)
 		r.Route("/courts", func(r chi.Router) {
-			r.Get("/", handleGetCourts)           // public: browse courts
-			r.Get("/{id}", handleGetCourt)         // public: court detail
+			r.Get("/", handleGetCourts)                   // public: browse courts
+			r.Get("/{id}", handleGetCourt)                // public: court detail
 			r.Get("/{id}/matches", handleGetCourtMatches) // public: matches in a court
 
 			r.Group(func(r chi.Router) {
@@ -67,9 +67,9 @@ func main() {
 				// Leader can update bonus EXP on assigned courts
 				r.With(requireRole("admin", "leader")).Put("/{id}/bonus", handleUpdateCourtBonus)
 
-				r.With(requireRole("admin")).Post("/", handleCreateCourt)          // admin only: create court
-				r.With(requireRole("admin")).Put("/{id}", handleUpdateCourt)       // admin only: update court
-				r.With(requireRole("admin")).Delete("/{id}", handleDeleteCourt)    // admin only: close court
+				r.With(requireRole("admin")).Post("/", handleCreateCourt)       // admin only: create court
+				r.With(requireRole("admin")).Put("/{id}", handleUpdateCourt)    // admin only: update court
+				r.With(requireRole("admin")).Delete("/{id}", handleDeleteCourt) // admin only: close court
 
 				// Court leader management (admin only)
 				r.With(requireRole("admin")).Post("/{id}/leaders", handleAssignCourtLeader)

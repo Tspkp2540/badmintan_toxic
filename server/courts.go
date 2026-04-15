@@ -10,20 +10,20 @@ import (
 )
 
 type courtResponse struct {
-	ID              string          `json:"id"`
-	Name            string          `json:"name"`
-	Description     string          `json:"description"`
-	Location        string          `json:"location"`
-	MaxRooms        int             `json:"maxRooms"`
-	BonusExpPercent int             `json:"bonusExpPercent"`
-	Status          string          `json:"status"`
-	CreatedBy       string          `json:"createdBy"`
-	CreatorName     string          `json:"creatorName"`
-	ActiveRooms     int             `json:"activeRooms"`
-	TotalPlayers    int             `json:"totalPlayers"`
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description"`
+	Location        string            `json:"location"`
+	MaxRooms        int               `json:"maxRooms"`
+	BonusExpPercent int               `json:"bonusExpPercent"`
+	Status          string            `json:"status"`
+	CreatedBy       string            `json:"createdBy"`
+	CreatorName     string            `json:"creatorName"`
+	ActiveRooms     int               `json:"activeRooms"`
+	TotalPlayers    int               `json:"totalPlayers"`
 	Leaders         []courtLeaderResp `json:"leaders"`
-	CreatedAt       string          `json:"createdAt"`
-	UpdatedAt       string          `json:"updatedAt"`
+	CreatedAt       string            `json:"createdAt"`
+	UpdatedAt       string            `json:"updatedAt"`
 }
 
 type courtLeaderResp struct {

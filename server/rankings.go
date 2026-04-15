@@ -79,10 +79,10 @@ func handleGetPlayerRank(w http.ResponseWriter, r *http.Request) {
 	userId := chi.URLParam(r, "userId")
 
 	var (
-		id, username, fullName, rank string
-		avatar                       sql.NullString
+		id, username, fullName, rank                          string
+		avatar                                                sql.NullString
 		level, wins, losses, totalMatches, points, rankPoints int
-		winRate                                                float64
+		winRate                                               float64
 	)
 	err := sqlDB.QueryRow(`
 		SELECT id, username, full_name, avatar_url, level, rank, wins, losses, win_rate, total_matches, points, rank_points
