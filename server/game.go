@@ -98,3 +98,47 @@ var rankPointRewards = map[string]int{
 	"lose": -10,
 	"draw": 5,
 }
+
+// Stars needed per tier before entering promotion Bo3
+var tierStarsRequired = map[string]int{
+	"BG1": 3,
+	"BG2": 3,
+	"S":   4,
+	"N":   4,
+	"P-":  5,
+	"P":   5,
+	"P+":  0, // max tier
+}
+
+func getNextSkillLevel(current string) string {
+	for i, lv := range skillLevelOrder {
+		if lv == current && i+1 < len(skillLevelOrder) {
+			return skillLevelOrder[i+1]
+		}
+	}
+	return ""
+}
+
+// isSkillGapTooLarge returns true if the player's skill level is >= 2 tiers above the opponent's average
+func isSkillGapTooLarge(playerSkillLevel string, opponentAvgLevelValue int) bool {
+	pv := skillLevelValue[playerSkillLevel]
+	return pv-opponentAvgLevelValue >= 2
+}
+
+// getTeamAvgLevelValue returns the average skill level VALUE (integer) for a team
+func getTeamAvgLevelValue(players []struct {
+	SkillLevel string
+	Team       string
+}, team string) int {
+	total, count := 0, 0
+	for _, p := range players {
+		if p.Team == team {
+			total += skillLevelValue[p.SkillLevel]
+			count++
+		}
+	}
+	if count == 0 {
+		return 1
+	}
+	return total / count
+}

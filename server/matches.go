@@ -466,7 +466,6 @@ func handleSubmitScores(w http.ResponseWriter, r *http.Request) {
 	for pRows.Next() {
 		var p playerInfo
 		pRows.Scan(&p.ID, &p.UserID, &p.Team)
-		// Fetch skill level for this player
 		tx.QueryRow("SELECT skill_level, skill_stars FROM users WHERE id = ?", p.UserID).
 			Scan(&p.SkillLevel, &p.SkillStars)
 		players = append(players, p)
@@ -476,13 +475,17 @@ func handleSubmitScores(w http.ResponseWriter, r *http.Request) {
 	// Calculate average skill per team for scaling
 	var teamASkill, teamBSkill float64
 	var teamACount, teamBCount int
+	var teamALevelTotal, teamBLevelTotal int
 	for _, p := range players {
 		sv := getSkillValue(p.SkillLevel, p.SkillStars)
+		lv := skillLevelValue[p.SkillLevel]
 		if p.Team == "A" {
 			teamASkill += sv
+			teamALevelTotal += lv
 			teamACount++
 		} else {
 			teamBSkill += sv
+			teamBLevelTotal += lv
 			teamBCount++
 		}
 	}
@@ -491,6 +494,14 @@ func handleSubmitScores(w http.ResponseWriter, r *http.Request) {
 	}
 	if teamBCount > 0 {
 		teamBSkill /= float64(teamBCount)
+	}
+	teamAAvgLevel := 1
+	if teamACount > 0 {
+		teamAAvgLevel = teamALevelTotal / teamACount
+	}
+	teamBAvgLevel := 1
+	if teamBCount > 0 {
+		teamBAvgLevel = teamBLevelTotal / teamBCount
 	}
 
 	// Determine winner/loser avg skill for scaling
@@ -514,27 +525,61 @@ func handleSubmitScores(w http.ResponseWriter, r *http.Request) {
 		isWinner := player.Team == winner
 		isDraw := winner == "draw"
 
-		var expGained, rpGained, winInc, lossInc, drawInc int
+		// Determine opponent team's avg level for skill gap check
+		opponentAvgLevel := teamBAvgLevel
+		if player.Team == "B" {
+			opponentAvgLevel = teamAAvgLevel
+		}
+		playerTooHigh := isSkillGapTooLarge(player.SkillLevel, opponentAvgLevel)
 
-		if isDraw {
-			expGained = rewards["draw"]
-			drawInc = 1
-			if matchMode == "ranked" {
-				rpGained = rankPointRewards["draw"]
-			}
-		} else if isWinner {
-			baseExp := rewards["win"]
-			expGained = int(math.Round(float64(baseExp) * expMult))
-			winInc = 1
-			if matchMode == "ranked" {
-				rpGained = rankPointRewards["win"]
+		var expGained, rpGained, winInc, lossInc, drawInc int
+		var starDelta int // for skill_test only
+
+		if playerTooHigh {
+			// Player is 2+ levels above opponent — gets NOTHING on win
+			// On lose: penalty RP (ranked) or star loss (skill_test)
+			if isDraw {
+				drawInc = 1
+			} else if isWinner {
+				winInc = 1
+				// No rewards at all
+			} else {
+				lossInc = 1
+				if matchMode == "ranked" {
+					rpGained = int(math.Round(float64(rankPointRewards["lose"]) * rpLosePenalty))
+				}
+				if matchMode == "skill_test" {
+					starDelta = -1
+				}
 			}
 		} else {
-			expGained = rewards["lose"]
-			lossInc = 1
-			if matchMode == "ranked" {
-				baseRP := rankPointRewards["lose"]
-				rpGained = int(math.Round(float64(baseRP) * rpLosePenalty))
+			// Normal reward logic
+			if isDraw {
+				expGained = rewards["draw"]
+				drawInc = 1
+				if matchMode == "ranked" {
+					rpGained = rankPointRewards["draw"]
+				}
+			} else if isWinner {
+				baseExp := rewards["win"]
+				expGained = int(math.Round(float64(baseExp) * expMult))
+				winInc = 1
+				if matchMode == "ranked" {
+					rpGained = rankPointRewards["win"]
+				}
+				if matchMode == "skill_test" {
+					starDelta = 1
+				}
+			} else {
+				expGained = rewards["lose"]
+				lossInc = 1
+				if matchMode == "ranked" {
+					baseRP := rankPointRewards["lose"]
+					rpGained = int(math.Round(float64(baseRP) * rpLosePenalty))
+				}
+				if matchMode == "skill_test" {
+					starDelta = -1
+				}
 			}
 		}
 
@@ -556,6 +601,73 @@ func handleSubmitScores(w http.ResponseWriter, r *http.Request) {
 			WHERE id = ?`,
 			expGained, winInc, lossInc, drawInc, rpGained, expGained, player.UserID)
 
+		// Handle skill star + promotion for skill_test matches
+		if matchMode == "skill_test" && starDelta != 0 {
+			var curStars int
+			var curSkill string
+			var promoWins, promoLosses int
+			tx.QueryRow("SELECT skill_level, skill_stars, promo_wins, promo_losses FROM users WHERE id = ?",
+				player.UserID).Scan(&curSkill, &curStars, &promoWins, &promoLosses)
+
+			maxStars := tierStarsRequired[curSkill]
+			inPromo := promoWins > 0 || promoLosses > 0
+
+			if maxStars == 0 {
+				// P+ (max tier) — stars still move 1-5 but no promotion
+				newStars := curStars + starDelta
+				if newStars < 1 {
+					newStars = 1
+				}
+				if newStars > 5 {
+					newStars = 5
+				}
+				tx.Exec("UPDATE users SET skill_stars = ? WHERE id = ?", newStars, player.UserID)
+			} else if inPromo {
+				// Player is in promotion Bo3
+				if starDelta > 0 {
+					promoWins++
+				} else {
+					promoLosses++
+				}
+
+				if promoWins >= 2 {
+					// Promotion success!
+					nextLevel := getNextSkillLevel(curSkill)
+					if nextLevel != "" {
+						tx.Exec("UPDATE users SET skill_level = ?, skill_stars = 1, promo_wins = 0, promo_losses = 0 WHERE id = ?",
+							nextLevel, player.UserID)
+					}
+				} else if promoLosses >= 2 {
+					// Promotion failed — drop 1 star, reset promo
+					newStars := maxStars - 1
+					if newStars < 1 {
+						newStars = 1
+					}
+					tx.Exec("UPDATE users SET skill_stars = ?, promo_wins = 0, promo_losses = 0 WHERE id = ?",
+						newStars, player.UserID)
+				} else {
+					// Still in promo
+					tx.Exec("UPDATE users SET promo_wins = ?, promo_losses = ? WHERE id = ?",
+						promoWins, promoLosses, player.UserID)
+				}
+			} else {
+				// Normal star progression
+				newStars := curStars + starDelta
+				if newStars < 1 {
+					newStars = 1
+				}
+
+				if newStars > maxStars {
+					// Stars full — enter promotion! First promo win counted
+					tx.Exec("UPDATE users SET skill_stars = ?, promo_wins = 1, promo_losses = 0 WHERE id = ?",
+						maxStars, player.UserID)
+				} else {
+					tx.Exec("UPDATE users SET skill_stars = ? WHERE id = ?", newStars, player.UserID)
+				}
+			}
+		}
+
+		// Level up from EXP
 		var level, exp, expToNext, userWins, totalMatches int
 		tx.QueryRow("SELECT level, exp, exp_to_next_level, wins, total_matches FROM users WHERE id = ?",
 			player.UserID).Scan(&level, &exp, &expToNext, &userWins, &totalMatches)

@@ -58,6 +58,9 @@ export interface User {
   totalMatches: number
   winRate: number
   points: number
+  rankPoints: number
+  promoWins: number
+  promoLosses: number
   createdAt: string
   updatedAt: string
 }
@@ -130,4 +133,14 @@ export function getRankByLevel(level: number): PlayerRank {
 
 export function getExpForLevel(level: number): number {
   return Math.floor(100 * Math.pow(1.2, level - 1))
+}
+
+export const TierStarsRequired: Record<string, number> = {
+  BG1: 3,
+  BG2: 3,
+  S: 4,
+  N: 4,
+  'P-': 5,
+  P: 5,
+  'P+': 0,
 }

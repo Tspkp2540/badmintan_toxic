@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { getRankByLevel, getExpForLevel, PlayerRank } from '@/models/User'
+import { getRankByLevel, getExpForLevel, PlayerRank, TierStarsRequired, SkillLevelOrder } from '@/models/User'
 import { UserRoleLabels } from '@/models/User'
 import LevelBadge from '@/components/LevelBadge.vue'
 import RankBadge from '@/components/RankBadge.vue'
@@ -15,6 +15,18 @@ const rank = computed(() => user.value?.rank ?? getRankByLevel(1))
 const exp = computed(() => user.value?.exp ?? 0)
 const expToNext = computed(() => user.value?.expToNextLevel ?? getExpForLevel(1))
 const expPercent = computed(() => Math.min((exp.value / expToNext.value) * 100, 100))
+
+const skillLevel = computed(() => user.value?.skillLevel ?? 'BG1')
+const skillStars = computed(() => user.value?.skillStars ?? 1)
+const promoWins = computed(() => user.value?.promoWins ?? 0)
+const promoLosses = computed(() => user.value?.promoLosses ?? 0)
+const maxStars = computed(() => TierStarsRequired[skillLevel.value] ?? 0)
+const inPromo = computed(() => promoWins.value > 0 || promoLosses.value > 0)
+const isMaxTier = computed(() => maxStars.value === 0)
+const nextSkillLevel = computed(() => {
+  const idx = SkillLevelOrder.indexOf(skillLevel.value as any)
+  return idx >= 0 && idx + 1 < SkillLevelOrder.length ? SkillLevelOrder[idx + 1] : null
+})
 
 const stats = computed(() => [
   { label: 'ชนะ', value: user.value?.wins ?? 0, color: '#4ade80' },
@@ -42,6 +54,7 @@ const rankColors: Record<string, string> = {
         <router-link to="/dashboard">แดชบอร์ด</router-link>
         <router-link to="/courts">สนาม</router-link>
         <router-link to="/ranking">อันดับ</router-link>
+        <router-link to="/skill-guide">คู่มือระดับ</router-link>
         <router-link v-if="authStore.isStaff" to="/manage-users">จัดการผู้ใช้</router-link>
         <router-link to="/profile">โปรไฟล์</router-link>
         <button @click="authStore.logout()" class="btn-logout">ออกจากระบบ</button>
@@ -84,6 +97,32 @@ const rankColors: Record<string, string> = {
             ></div>
           </div>
         </div>
+
+        <!-- Skill Promotion Status -->
+        <div v-if="!isMaxTier" class="promo-section">
+          <div v-if="inPromo" class="promo-box promo-active">
+            <span class="promo-title">⛔️ ศึกอัพระดับ {{ skillLevel }} → {{ nextSkillLevel }}</span>
+            <div class="promo-bo3">
+              <span v-for="i in 3" :key="i" class="promo-dot"
+                :class="{ win: i <= promoWins, lose: i > (3 - promoLosses) && i > promoWins }">
+                {{ i <= promoWins ? '✔' : i > (3 - promoLosses) ? '✘' : '○' }}
+              </span>
+              <span class="promo-label"> ชนะ {{ promoWins }}/2 (แพ้ {{ promoLosses }}/2)</span>
+            </div>
+          </div>
+          <div v-else class="promo-box promo-stars">
+            <span class="promo-title">⭐ ดาวระดับ {{ skillStars }}/{{ maxStars }}</span>
+            <div class="stars-progress">
+              <span v-for="i in maxStars" :key="i" class="star"
+                :class="{ filled: i <= skillStars }">★</span>
+            </div>
+          </div>
+        </div>
+        <div v-else class="promo-section">
+          <div class="promo-box promo-max">
+            <span>🏆 ระดับสูงสุด!</span>
+          </div>
+        </div>
       </section>
 
       <!-- Stats -->
@@ -109,6 +148,10 @@ const rankColors: Record<string, string> = {
           <router-link to="/profile" class="action-card">
             <span class="action-icon">👤</span>
             <span>โปรไฟล์</span>
+          </router-link>
+          <router-link to="/skill-guide" class="action-card">
+            <span class="action-icon">📖</span>
+            <span>คู่มือระดับ</span>
           </router-link>
         </div>
       </section>
@@ -251,6 +294,93 @@ const rankColors: Record<string, string> = {
   height: 100%;
   border-radius: 5px;
   transition: width 0.5s ease;
+}
+
+/* Promotion section */
+.promo-section {
+  margin-top: 1rem;
+}
+
+.promo-box {
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.promo-active {
+  background: #422006;
+  border: 1px solid #92400e;
+}
+
+.promo-stars {
+  background: #1a2332;
+  border: 1px solid #334155;
+}
+
+.promo-max {
+  background: linear-gradient(135deg, #3b2a15 0%, #1e293b 100%);
+  border: 1px solid #fbbf24;
+  color: #fbbf24;
+  font-weight: 700;
+  text-align: center;
+}
+
+.promo-title {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.promo-active .promo-title {
+  color: #fbbf24;
+}
+
+.promo-bo3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.promo-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.promo-dot.win {
+  background: #065f46;
+  color: #4ade80;
+}
+
+.promo-dot.lose {
+  background: #7f1d1d;
+  color: #fca5a5;
+}
+
+.promo-label {
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.stars-progress {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.star {
+  font-size: 1.2rem;
+  color: #475569;
+}
+
+.star.filled {
+  color: #fbbf24;
 }
 
 .stats-grid {

@@ -31,6 +31,8 @@ type userRow struct {
 	WinRate        float64
 	Points         int
 	RankPoints     int
+	PromoWins      int
+	PromoLosses    int
 	CreatedAt      string
 	UpdatedAt      string
 }
@@ -54,6 +56,8 @@ type userResponse struct {
 	WinRate        float64 `json:"winRate"`
 	Points         int     `json:"points"`
 	RankPoints     int     `json:"rankPoints"`
+	PromoWins      int     `json:"promoWins"`
+	PromoLosses    int     `json:"promoLosses"`
 	CreatedAt      string  `json:"createdAt"`
 	UpdatedAt      string  `json:"updatedAt"`
 }
@@ -71,13 +75,14 @@ func formatUserResp(u *userRow) userResponse {
 		Rank: u.Rank, Wins: u.Wins, Losses: u.Losses,
 		TotalMatches: u.TotalMatches, WinRate: u.WinRate,
 		Points: u.Points, RankPoints: u.RankPoints,
+		PromoWins: u.PromoWins, PromoLosses: u.PromoLosses,
 		CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt,
 	}
 }
 
 const userSelectCols = `id, username, email, password_hash, full_name, role, avatar_url,
 	skill_level, skill_stars, level, exp, exp_to_next_level, rank, wins, losses, draws, total_matches,
-	win_rate, points, rank_points, created_at, updated_at`
+	win_rate, points, rank_points, promo_wins, promo_losses, created_at, updated_at`
 
 func scanUserRow(row *sql.Row) (*userRow, error) {
 	var u userRow
@@ -85,7 +90,7 @@ func scanUserRow(row *sql.Row) (*userRow, error) {
 		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.FullName, &u.Role, &u.AvatarURL,
 		&u.SkillLevel, &u.SkillStars, &u.Level, &u.Exp, &u.ExpToNextLevel, &u.Rank,
 		&u.Wins, &u.Losses, &u.Draws, &u.TotalMatches,
-		&u.WinRate, &u.Points, &u.RankPoints, &u.CreatedAt, &u.UpdatedAt,
+		&u.WinRate, &u.Points, &u.RankPoints, &u.PromoWins, &u.PromoLosses, &u.CreatedAt, &u.UpdatedAt,
 	)
 	return &u, err
 }

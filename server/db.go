@@ -62,6 +62,8 @@ func migrateDB() {
 		win_rate REAL DEFAULT 0,
 		points INTEGER DEFAULT 0,
 		rank_points INTEGER DEFAULT 0,
+		promo_wins INTEGER NOT NULL DEFAULT 0,
+		promo_losses INTEGER NOT NULL DEFAULT 0,
 		created_at TEXT DEFAULT (datetime('now')),
 		updated_at TEXT DEFAULT (datetime('now'))
 	);
@@ -151,6 +153,10 @@ func migrateDB() {
 
 	// Add bonus_exp_percent to courts if it doesn't exist
 	sqlDB.Exec(`ALTER TABLE courts ADD COLUMN bonus_exp_percent INTEGER NOT NULL DEFAULT 0`)
+
+	// Add promotion tracking columns
+	sqlDB.Exec(`ALTER TABLE users ADD COLUMN promo_wins INTEGER NOT NULL DEFAULT 0`)
+	sqlDB.Exec(`ALTER TABLE users ADD COLUMN promo_losses INTEGER NOT NULL DEFAULT 0`)
 
 	// Create court_leaders table if it doesn't exist
 	sqlDB.Exec(`CREATE TABLE IF NOT EXISTS court_leaders (
