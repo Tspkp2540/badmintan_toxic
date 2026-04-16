@@ -154,6 +154,7 @@ func handleCreateCourt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c, _ := buildCourtResponse(id)
+	broadcastCourtUpdated(id)
 	writeJSON(w, 201, c)
 }
 
@@ -222,6 +223,7 @@ func handleUpdateCourt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c, _ := buildCourtResponse(courtID)
+	broadcastCourtUpdated(courtID)
 	writeJSON(w, 200, c)
 }
 
@@ -239,6 +241,7 @@ func handleDeleteCourt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sqlDB.Exec("UPDATE courts SET status = 'closed', updated_at = datetime('now') WHERE id = ?", courtID)
+	broadcastCourtUpdated(courtID)
 	writeJSON(w, 200, map[string]string{"message": "ปิดสนามเรียบร้อย"})
 }
 
@@ -326,6 +329,7 @@ func handleAssignCourtLeader(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c, _ := buildCourtResponse(courtID)
+	broadcastCourtUpdated(courtID)
 	writeJSON(w, 200, c)
 }
 
@@ -353,6 +357,7 @@ func handleRemoveCourtLeader(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c, _ := buildCourtResponse(courtID)
+	broadcastCourtUpdated(courtID)
 	writeJSON(w, 200, c)
 }
 
@@ -390,6 +395,7 @@ func handleUpdateCourtBonus(w http.ResponseWriter, r *http.Request) {
 		req.BonusExpPercent, courtID)
 
 	c, _ := buildCourtResponse(courtID)
+	broadcastCourtUpdated(courtID)
 	writeJSON(w, 200, c)
 }
 

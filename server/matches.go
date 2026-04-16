@@ -238,6 +238,7 @@ func handleCreateMatch(w http.ResponseWriter, r *http.Request) {
 	sqlDB.Exec(`INSERT INTO match_players (match_id, user_id, team) VALUES (?, ?, 'A')`, id, userID)
 
 	m, _ := buildMatchResponse(id)
+	broadcastRoomCreated(req.CourtID, id)
 	writeJSON(w, 201, m)
 }
 
@@ -302,7 +303,9 @@ func handleJoinMatch(w http.ResponseWriter, r *http.Request) {
 
 	sqlDB.Exec("INSERT INTO match_players (match_id, user_id, team) VALUES (?, ?, ?)", matchID, userID, req.Team)
 
+	courtID := getMatchCourtID(matchID)
 	m, _ := buildMatchResponse(matchID)
+	broadcastRoomUpdate(courtID, matchID)
 	writeJSON(w, 200, m)
 }
 
@@ -336,7 +339,9 @@ func handleJoinAsReferee(w http.ResponseWriter, r *http.Request) {
 
 	sqlDB.Exec("UPDATE matches SET referee_id = ? WHERE id = ?", userID, matchID)
 
+	refCourtID := getMatchCourtID(matchID)
 	m, _ := buildMatchResponse(matchID)
+	broadcastRoomUpdate(refCourtID, matchID)
 	writeJSON(w, 200, m)
 }
 
@@ -370,7 +375,9 @@ func handleStartMatch(w http.ResponseWriter, r *http.Request) {
 
 	sqlDB.Exec("UPDATE matches SET status = 'playing', started_at = datetime('now') WHERE id = ?", matchID)
 
+	courtID := getMatchCourtID(matchID)
 	m, _ := buildMatchResponse(matchID)
+	broadcastRoomUpdate(courtID, matchID)
 	writeJSON(w, 200, m)
 }
 
@@ -390,7 +397,9 @@ func handleEndMatch(w http.ResponseWriter, r *http.Request) {
 
 	sqlDB.Exec("UPDATE matches SET status = 'scoring', ended_at = datetime('now') WHERE id = ?", matchID)
 
+	courtID := getMatchCourtID(matchID)
 	m, _ := buildMatchResponse(matchID)
+	broadcastRoomUpdate(courtID, matchID)
 	writeJSON(w, 200, m)
 }
 
@@ -689,7 +698,9 @@ func handleSubmitScores(w http.ResponseWriter, r *http.Request) {
 
 	tx.Commit()
 
+	scoreCourtID := getMatchCourtID(matchID)
 	m, _ := buildMatchResponse(matchID)
+	broadcastScoresSubmitted(scoreCourtID, matchID)
 	writeJSON(w, 200, m)
 }
 
@@ -722,7 +733,9 @@ func handleLeaveMatch(w http.ResponseWriter, r *http.Request) {
 		sqlDB.Exec("UPDATE matches SET status = 'cancelled' WHERE id = ?", matchID)
 	}
 
+	leaveCourtID := getMatchCourtID(matchID)
 	m, _ := buildMatchResponse(matchID)
+	broadcastRoomUpdate(leaveCourtID, matchID)
 	writeJSON(w, 200, m)
 }
 

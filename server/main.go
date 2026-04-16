@@ -42,6 +42,9 @@ func main() {
 			})
 		})
 
+		// SSE endpoint for realtime court updates (no auth needed, read-only notifications)
+		r.Get("/events", handleSSE)
+
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", handleRegister)
 			r.Post("/login", handleLogin)
