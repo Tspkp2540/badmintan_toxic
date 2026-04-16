@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { getRankByLevel, getExpForLevel, PlayerRank, TierStarsRequired, SkillLevelOrder } from '@/models/User'
 import { UserRoleLabels } from '@/models/User'
 import LevelBadge from '@/components/LevelBadge.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import SkillBadge from '@/components/SkillBadge.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+
+const showLogoutConfirm = ref(false)
 
 const authStore = useAuthStore()
 
@@ -57,9 +60,19 @@ const rankColors: Record<string, string> = {
         <router-link to="/skill-guide">คู่มือระดับ</router-link>
         <router-link v-if="authStore.isStaff" to="/manage-users">จัดการผู้ใช้</router-link>
         <router-link to="/profile">โปรไฟล์</router-link>
-        <button @click="authStore.logout()" class="btn-logout">ออกจากระบบ</button>
+        <button @click="showLogoutConfirm = true" class="btn-logout">ออกจากระบบ</button>
       </nav>
     </header>
+
+    <ConfirmModal
+      :show="showLogoutConfirm"
+      title="ออกจากระบบ"
+      message="ต้องการออกจากระบบหรือไม่?"
+      variant="danger"
+      confirm-text="ออกจากระบบ"
+      @confirm="authStore.logout()"
+      @cancel="showLogoutConfirm = false"
+    />
 
     <main class="dashboard-content">
       <!-- Player Card -->

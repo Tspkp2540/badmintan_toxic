@@ -4,9 +4,12 @@ import { useRoute } from 'vue-router'
 import { useCourtStore, type MatchRoom, type MatchSet } from '@/stores/court'
 import { useAuthStore } from '@/stores/auth'
 import { courtService, type Court } from '@/services/courtService'
+import { createCourtSSE, type SSEConnection } from '@/services/sseService'
 import RankBadge from '@/components/RankBadge.vue'
 import LevelBadge from '@/components/LevelBadge.vue'
 import SkillBadge from '@/components/SkillBadge.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import ErrorAlert from '@/components/ErrorAlert.vue'
 
 const route = useRoute()
 const courtStore = useCourtStore()
@@ -17,6 +20,8 @@ const courtInfo = ref<Court | null>(null)
 const currentUser = computed(() => authStore.user)
 
 // === Load court info & rooms on mount ===
+let sseConn: SSEConnection | null = null
+
 onMounted(async () => {
   try {
     courtInfo.value = await courtService.getCourt(courtId.value)
@@ -24,18 +29,41 @@ onMounted(async () => {
     // court not found
   }
   courtStore.fetchRoomsByCourt(courtId.value)
-  // Poll for updates every 5 seconds
+
+  // Connect to SSE for real-time updates
+  sseConn = createCourtSSE(courtId.value)
+
+  sseConn.on('room_created', () => {
+    courtStore.fetchRoomsByCourt(courtId.value)
+  })
+
+  sseConn.on('room_updated', (data: { roomId: string }) => {
+    courtStore.fetchRoom(data.roomId)
+    courtStore.fetchRoomsByCourt(courtId.value)
+  })
+
+  sseConn.on('scores_submitted', (data: { roomId: string }) => {
+    courtStore.fetchRoom(data.roomId)
+    courtStore.fetchRoomsByCourt(courtId.value)
+    // Refresh profile since EXP/rank may have changed
+    authStore.fetchProfile()
+  })
+
+  sseConn.connect()
+
+  // Fallback poll every 30s in case SSE disconnects
   pollInterval = setInterval(() => {
     courtStore.fetchRoomsByCourt(courtId.value)
-    if (activeRoom.value) {
-      courtStore.fetchRoom(activeRoom.value.id)
-    }
-  }, 5000)
+  }, 30000)
 })
 
 let pollInterval: ReturnType<typeof setInterval> | undefined
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval)
+  if (sseConn) {
+    sseConn.disconnect()
+    sseConn = null
+  }
 })
 
 // === Create Room Dialog ===
@@ -154,6 +182,49 @@ function submitScores() {
   courtStore.submitScores(activeRoom.value.id, validSets)
 }
 
+// === Confirm Modals ===
+const confirmAction = ref<'start' | 'end' | 'submit' | 'leave' | null>(null)
+const confirmLoading = ref(false)
+
+const confirmConfig = computed(() => {
+  switch (confirmAction.value) {
+    case 'start':
+      return { title: '🚀 เริ่มเกม', message: 'ต้องการเริ่มเกมนี้หรือไม่?', variant: 'info' as const, confirmText: 'เริ่มเกม' }
+    case 'end':
+      return { title: '🏁 จบเกม', message: 'ต้องการจบเกมนี้และเข้าสู่การกรอกคะแนนหรือไม่?', variant: 'warning' as const, confirmText: 'จบเกม' }
+    case 'submit':
+      return { title: '📊 ส่งคะแนน', message: 'ยืนยันการส่งคะแนน? ผลนี้จะถูกบันทึกถาวร', variant: 'warning' as const, confirmText: 'ส่งคะแนน' }
+    case 'leave':
+      return { title: 'ออกจากห้อง', message: 'ต้องการออกจากห้องนี้หรือไม่?', variant: 'danger' as const, confirmText: 'ออกจากห้อง' }
+    default:
+      return { title: '', message: '', variant: 'info' as const, confirmText: '' }
+  }
+})
+
+async function handleConfirm() {
+  if (!activeRoom.value) return
+  confirmLoading.value = true
+  try {
+    switch (confirmAction.value) {
+      case 'start':
+        await courtStore.startGame(activeRoom.value.id)
+        break
+      case 'end':
+        await courtStore.endGame(activeRoom.value.id)
+        break
+      case 'submit':
+        submitScores()
+        break
+      case 'leave':
+        await courtStore.leaveRoom(activeRoom.value.id)
+        break
+    }
+  } finally {
+    confirmLoading.value = false
+    confirmAction.value = null
+  }
+}
+
 import { watch } from 'vue'
 watch(
   () => activeRoom.value?.status,
@@ -177,6 +248,7 @@ watch(
     </header>
 
     <main class="court-content">
+      <ErrorAlert :message="courtStore.error" @close="courtStore.error = null" />
       <div class="layout">
         <!-- Room List (left) -->
         <section class="room-list-section">
@@ -334,14 +406,14 @@ watch(
               <button
                 v-if="isCurrentUserInRoom(activeRoom) && canStart(activeRoom)"
                 class="btn-action btn-start"
-                @click="courtStore.startGame(activeRoom.id)"
+                @click="confirmAction = 'start'"
               >
                 🚀 เริ่มเกม
               </button>
               <button
                 v-if="isCurrentUserInRoom(activeRoom)"
                 class="btn-action btn-leave"
-                @click="courtStore.leaveRoom(activeRoom.id)"
+                @click="confirmAction = 'leave'"
               >
                 ออกจากห้อง
               </button>
@@ -353,7 +425,7 @@ watch(
                 <p>🏸 กำลังแข่งขัน...</p>
               </div>
               <div class="playing-actions" v-if="isCurrentUserInRoom(activeRoom)">
-                <button class="btn-action btn-end" @click="courtStore.endGame(activeRoom.id)">
+                <button class="btn-action btn-end" @click="confirmAction = 'end'">
                   🏁 จบเกม
                 </button>
               </div>
@@ -389,7 +461,7 @@ watch(
                     />
                   </div>
                 </div>
-                <button class="btn-action btn-submit" @click="submitScores">
+                <button class="btn-action btn-submit" @click="confirmAction = 'submit'">
                   📊 ส่งคะแนน
                 </button>
               </div>
@@ -431,7 +503,7 @@ watch(
                   </div>
                 </div>
 
-                <button class="btn-action btn-leave" @click="courtStore.leaveRoom(activeRoom.id)">
+                <button class="btn-action btn-leave" @click="confirmAction = 'leave'">
                   ออกจากห้อง
                 </button>
               </div>
@@ -448,6 +520,18 @@ watch(
         </section>
       </div>
     </main>
+
+    <!-- Confirm Modal -->
+    <ConfirmModal
+      :show="!!confirmAction"
+      :title="confirmConfig.title"
+      :message="confirmConfig.message"
+      :variant="confirmConfig.variant"
+      :confirm-text="confirmConfig.confirmText"
+      :loading="confirmLoading"
+      @confirm="handleConfirm"
+      @cancel="confirmAction = null"
+    />
 
     <!-- Create Room Modal -->
     <Teleport to="body">

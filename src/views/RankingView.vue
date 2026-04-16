@@ -4,21 +4,24 @@ import { rankingService } from '@/services/rankingService'
 import type { RankingEntry } from '@/models/Ranking'
 import RankBadge from '@/components/RankBadge.vue'
 import SkillBadge from '@/components/SkillBadge.vue'
+import ErrorAlert from '@/components/ErrorAlert.vue'
 
 const rankings = ref<RankingEntry[]>([])
 const loading = ref(true)
+const errorMsg = ref<string | null>(null)
 const currentPage = ref(1)
 const totalPages = ref(1)
 
 async function loadRankings(page = 1) {
   loading.value = true
+  errorMsg.value = null
   try {
     const data = await rankingService.getLeaderboard(page)
     rankings.value = data.rankings
     currentPage.value = data.currentPage
     totalPages.value = data.totalPages
-  } catch {
-    // TODO: handle error
+  } catch (e: any) {
+    errorMsg.value = e.response?.data?.message || 'โหลดอันดับไม่สำเร็จ'
   } finally {
     loading.value = false
   }
@@ -43,7 +46,10 @@ function getMedalEmoji(position: number): string {
 
     <div v-if="loading" class="loading">กำลังโหลด...</div>
 
-    <div v-else class="ranking-table-wrapper">
+    <template v-else>
+      <ErrorAlert :message="errorMsg" @close="errorMsg = null" />
+
+      <div class="ranking-table-wrapper">
       <table class="ranking-table">
         <thead>
           <tr>
@@ -96,7 +102,8 @@ function getMedalEmoji(position: number): string {
           ถัดไป →
         </button>
       </div>
-    </div>
+      </div>
+    </template>
   </div>
 </template>
 

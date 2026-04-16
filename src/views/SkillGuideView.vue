@@ -2,6 +2,9 @@
 import { ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import SkillBadge from '@/components/SkillBadge.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+
+const showLogoutConfirm = ref(false)
 
 const authStore = useAuthStore()
 
@@ -44,9 +47,19 @@ function renderStars(filled: number, total: number): string {
         <router-link to="/ranking">อันดับ</router-link>
         <router-link to="/skill-guide">คู่มือระดับ</router-link>
         <router-link to="/profile">โปรไฟล์</router-link>
-        <button @click="authStore.logout()" class="btn-logout">ออกจากระบบ</button>
+        <button @click="showLogoutConfirm = true" class="btn-logout">ออกจากระบบ</button>
       </nav>
     </header>
+
+    <ConfirmModal
+      :show="showLogoutConfirm"
+      title="ออกจากระบบ"
+      message="ต้องการออกจากระบบหรือไม่?"
+      variant="danger"
+      confirm-text="ออกจากระบบ"
+      @confirm="authStore.logout()"
+      @cancel="showLogoutConfirm = false"
+    />
 
     <main class="guide-content">
       <section class="guide-intro">

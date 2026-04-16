@@ -2,6 +2,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { courtService, type Court } from '@/services/courtService'
+import { createGlobalSSE, type SSEConnection } from '@/services/sseService'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const authStore = useAuthStore()
 const courts = ref<Court[]>([])
@@ -90,14 +92,29 @@ async function updateCourt() {
 }
 
 async function deleteCourt(court: Court) {
-  if (!confirm(`ต้องการปิดสนาม "${court.name}" หรือไม่?`)) return
+  pendingDeleteCourt.value = court
+  showDeleteConfirm.value = true
+}
+
+const showDeleteConfirm = ref(false)
+const pendingDeleteCourt = ref<Court | null>(null)
+const deleteLoading = ref(false)
+
+async function confirmDeleteCourt() {
+  if (!pendingDeleteCourt.value) return
+  deleteLoading.value = true
   errorMsg.value = ''
   try {
-    await courtService.deleteCourt(court.id)
+    await courtService.deleteCourt(pendingDeleteCourt.value.id)
     await loadCourts()
   } catch (e: any) {
     errorMsg.value = e.response?.data?.message || 'ปิดสนามไม่สำเร็จ'
+  } finally {
+    deleteLoading.value = false
+    showDeleteConfirm.value = false
+    pendingDeleteCourt.value = null
   }
+}
 }
 
 function statusLabel(s: string) {
@@ -114,12 +131,41 @@ function statusIcon(s: string) {
 }
 
 let pollInterval: ReturnType<typeof setInterval> | undefined
+let sseConn: SSEConnection | null = null
+
 onMounted(() => {
   loadCourts()
-  pollInterval = setInterval(loadCourts, 8000)
+
+  // Connect to global SSE for real-time court updates
+  sseConn = createGlobalSSE()
+
+  sseConn.on('court_updated', () => {
+    loadCourts()
+  })
+
+  sseConn.on('room_created', () => {
+    loadCourts()
+  })
+
+  sseConn.on('room_updated', () => {
+    loadCourts()
+  })
+
+  sseConn.on('scores_submitted', () => {
+    loadCourts()
+  })
+
+  sseConn.connect()
+
+  // Fallback poll every 30s in case SSE disconnects
+  pollInterval = setInterval(loadCourts, 30000)
 })
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval)
+  if (sseConn) {
+    sseConn.disconnect()
+    sseConn = null
+  }
 })
 </script>
 
@@ -290,6 +336,18 @@ onUnmounted(() => {
         </div>
       </div>
     </Teleport>
+
+    <!-- Delete Confirm Modal -->
+    <ConfirmModal
+      :show="showDeleteConfirm"
+      title="🔒 ปิดสนาม"
+      :message="`ต้องการปิดสนาม &quot;${pendingDeleteCourt?.name}&quot; หรือไม่?`"
+      variant="danger"
+      confirm-text="ปิดสนาม"
+      :loading="deleteLoading"
+      @confirm="confirmDeleteCourt"
+      @cancel="showDeleteConfirm = false; pendingDeleteCourt = null"
+    />
   </div>
 </template>
 

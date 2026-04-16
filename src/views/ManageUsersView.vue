@@ -6,6 +6,7 @@ import { UserRole, UserRoleLabels, SkillLevelLabels, SkillLevelOrder } from '@/m
 import type { User, SkillLevel } from '@/models/User'
 import SkillBadge from '@/components/SkillBadge.vue'
 import LevelBadge from '@/components/LevelBadge.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const authStore = useAuthStore()
 const users = ref<User[]>([])
@@ -15,6 +16,7 @@ const successMsg = ref('')
 const searchQuery = ref('')
 const filterRole = ref('all')
 const selectedUser = ref<User | null>(null)
+const showLogoutConfirm = ref(false)
 
 // Skill edit state
 const editSkillLevel = ref<string>('')
@@ -72,12 +74,58 @@ function showSuccess(msg: string) {
 }
 
 async function changeRole(userId: string, role: string) {
+  pendingRoleChange.value = { userId, role }
+  confirmAction.value = 'role'
+}
+
+// Confirm modal state
+const confirmAction = ref<'role' | 'skill' | null>(null)
+const confirmLoading = ref(false)
+const pendingRoleChange = ref<{ userId: string; role: string } | null>(null)
+
+const confirmConfig = computed(() => {
+  if (confirmAction.value === 'role' && pendingRoleChange.value) {
+    const targetUser = users.value.find(u => u.id === pendingRoleChange.value!.userId)
+    const roleName = UserRoleLabels[pendingRoleChange.value.role as keyof typeof UserRoleLabels] || pendingRoleChange.value.role
+    return {
+      title: '🛡️ เปลี่ยนบทบาท',
+      message: `ต้องการเปลี่ยนบทบาทของ "${targetUser?.fullName}" เป็น "${roleName}" หรือไม่?`,
+      variant: 'warning' as const,
+      confirmText: 'เปลี่ยนบทบาท',
+    }
+  }
+  if (confirmAction.value === 'skill' && selectedUser.value) {
+    return {
+      title: '⚔️ อัปเดตระดับฝีมือ',
+      message: `ต้องการเปลี่ยนระดับฝีมือของ "${selectedUser.value.fullName}" เป็น ${editSkillLevel.value} ★${editSkillStars.value} หรือไม่?`,
+      variant: 'warning' as const,
+      confirmText: 'บันทึก',
+    }
+  }
+  return { title: '', message: '', variant: 'info' as const, confirmText: '' }
+})
+
+async function handleConfirm() {
+  confirmLoading.value = true
+  try {
+    if (confirmAction.value === 'role' && pendingRoleChange.value) {
+      await doChangeRole(pendingRoleChange.value.userId, pendingRoleChange.value.role)
+      pendingRoleChange.value = null
+    } else if (confirmAction.value === 'skill') {
+      await doSaveSkillLevel()
+    }
+  } finally {
+    confirmLoading.value = false
+    confirmAction.value = null
+  }
+}
+
+async function doChangeRole(userId: string, role: string) {
   errorMsg.value = ''
   try {
     await userService.updateUserRole({ userId, role: role as any })
     showSuccess('เปลี่ยนบทบาทสำเร็จ')
     await loadUsers()
-    // Update selected user if open
     if (selectedUser.value?.id === userId) {
       selectedUser.value = users.value.find(u => u.id === userId) ?? null
     }
@@ -97,6 +145,11 @@ function closeDetail() {
 }
 
 async function saveSkillLevel() {
+  if (!selectedUser.value) return
+  confirmAction.value = 'skill'
+}
+
+async function doSaveSkillLevel() {
   if (!selectedUser.value) return
   errorMsg.value = ''
   try {
@@ -127,9 +180,19 @@ onMounted(loadUsers)
         <router-link to="/skill-guide">คู่มือระดับ</router-link>
         <router-link to="/manage-users">จัดการผู้ใช้</router-link>
         <router-link to="/profile">โปรไฟล์</router-link>
-        <button @click="authStore.logout()" class="btn-logout">ออกจากระบบ</button>
+        <button @click="showLogoutConfirm = true" class="btn-logout">ออกจากระบบ</button>
       </nav>
     </header>
+
+    <ConfirmModal
+      :show="showLogoutConfirm"
+      title="ออกจากระบบ"
+      message="ต้องการออกจากระบบหรือไม่?"
+      variant="danger"
+      confirm-text="ออกจากระบบ"
+      @confirm="authStore.logout()"
+      @cancel="showLogoutConfirm = false"
+    />
 
     <main class="content">
       <div class="page-title-row">
@@ -348,6 +411,18 @@ onMounted(loadUsers)
         </div>
       </div>
     </transition>
+
+    <!-- Confirm Modal -->
+    <ConfirmModal
+      :show="!!confirmAction"
+      :title="confirmConfig.title"
+      :message="confirmConfig.message"
+      :variant="confirmConfig.variant"
+      :confirm-text="confirmConfig.confirmText"
+      :loading="confirmLoading"
+      @confirm="handleConfirm"
+      @cancel="confirmAction = null; pendingRoleChange = null"
+    />
   </div>
 </template>
 
