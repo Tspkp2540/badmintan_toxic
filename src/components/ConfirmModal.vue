@@ -59,7 +59,7 @@ defineEmits<{
   border: 1px solid #334155;
   border-radius: 16px;
   padding: 2rem;
-  min-width: 360px;
+  width: 90%;
   max-width: 440px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }

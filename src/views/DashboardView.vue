@@ -455,4 +455,52 @@ const rankColors: Record<string, string> = {
 .action-icon {
   font-size: 2rem;
 }
+
+/* ===== Mobile Responsive ===== */
+@media (max-width: 768px) {
+  .dashboard-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .dashboard-header nav {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  .dashboard-content {
+    margin: 1rem auto;
+  }
+
+  .player-card {
+    padding: 1.25rem;
+  }
+
+  .player-info h2 {
+    font-size: 1.1rem;
+  }
+
+  .level-rank {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-value {
+    font-size: 1.4rem;
+  }
+
+  .actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .action-card {
+    padding: 1rem;
+  }
+}
 </style>

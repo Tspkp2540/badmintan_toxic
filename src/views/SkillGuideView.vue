@@ -913,12 +913,22 @@ function renderStars(filled: number, total: number): string {
   .guide-header {
     flex-direction: column;
     gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .guide-header h1 {
+    font-size: 1.2rem;
   }
 
   .guide-header nav {
     flex-wrap: wrap;
     justify-content: center;
     gap: 0.75rem;
+  }
+
+  .guide-content {
+    margin: 1rem auto;
+    padding: 0 0.75rem;
   }
 
   .steps-grid {

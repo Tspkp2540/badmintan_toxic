@@ -247,4 +247,32 @@ function getMedalEmoji(position: number): string {
   color: #94a3b8;
   font-size: 0.9rem;
 }
+
+/* ===== Mobile Responsive ===== */
+@media (max-width: 768px) {
+  .ranking-page {
+    padding: 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 1.3rem;
+  }
+
+  .ranking-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -0.5rem;
+    padding: 0 0.5rem;
+  }
+
+  .ranking-table {
+    min-width: 640px;
+    font-size: 0.85rem;
+  }
+
+  .ranking-table th,
+  .ranking-table td {
+    padding: 0.6rem 0.5rem;
+  }
+}
 </style>

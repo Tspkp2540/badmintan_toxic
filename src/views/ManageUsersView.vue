@@ -944,12 +944,21 @@ onMounted(loadUsers)
   .page-header {
     flex-direction: column;
     gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 1.2rem;
   }
 
   .page-header nav {
     flex-wrap: wrap;
     justify-content: center;
     gap: 0.75rem;
+  }
+
+  .main-content {
+    padding: 1rem 0.75rem;
   }
 
   .role-stats {

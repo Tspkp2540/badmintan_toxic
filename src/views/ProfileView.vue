@@ -268,4 +268,30 @@ const allRanks = Object.entries(RANK_THRESHOLDS).map(([name, minLevel]) => ({
   font-size: 0.75rem;
   color: #64748b;
 }
+
+/* ===== Mobile Responsive ===== */
+@media (max-width: 768px) {
+  .profile-page {
+    padding: 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 1.3rem;
+  }
+
+  .profile-card {
+    padding: 1.25rem;
+  }
+
+  .avatar-large {
+    width: 64px;
+    height: 64px;
+    font-size: 1.5rem;
+  }
+
+  .badges {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}
 </style>

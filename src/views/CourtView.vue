@@ -1479,5 +1479,66 @@ watch(
   .playing-actions {
     flex-direction: column;
   }
+
+  .page-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    align-items: stretch;
+  }
+
+  .header-left {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .page-header h1 {
+    font-size: 1.1rem;
+  }
+
+  .court-content {
+    padding: 0.75rem;
+  }
+
+  .room-detail-section {
+    padding: 1rem;
+    min-height: auto;
+  }
+
+  .court-side {
+    padding: 1rem;
+  }
+
+  .room-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .room-meta {
+    flex-wrap: wrap;
+  }
+
+  .scoring-section {
+    padding: 1rem;
+  }
+
+  .score-input {
+    font-size: 1rem;
+    padding: 0.4rem;
+  }
+
+  .referee-section {
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+  }
+
+  .result-winner {
+    font-size: 1.2rem;
+  }
+
+  .reward-row {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.75rem;
+  }
 }
 </style>

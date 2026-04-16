@@ -712,5 +712,30 @@ onUnmounted(() => {
   .courts-grid {
     grid-template-columns: 1fr;
   }
+
+  .page-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    align-items: stretch;
+  }
+
+  .header-left {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .page-header h1 {
+    font-size: 1.2rem;
+  }
+
+  .content {
+    padding: 0 0.75rem;
+    margin: 1rem auto;
+  }
+
+  .court-card-stats {
+    gap: 1rem;
+  }
 }
 </style>
