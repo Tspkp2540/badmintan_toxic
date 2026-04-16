@@ -115,7 +115,6 @@ async function confirmDeleteCourt() {
     pendingDeleteCourt.value = null
   }
 }
-}
 
 function statusLabel(s: string) {
   if (s === 'open') return 'เปิด'
